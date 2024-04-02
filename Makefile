@@ -1,18 +1,25 @@
 CC=gcc
-CFLAGS=-g
-TARGETS=sender receiver
+CFLAGS=-Wall -Wextra -g
 
-all: $(TARGETS)
+SRC=./src
+OUT=./bin
 
-sender: sender.o
-	$(CC) -o sender sender.o $(CFLAGS)
+SVR_SOURCE=$(SRC)/poll.c
+CLI_SOURCE=$(SRC)/client.c
 
-receiver: receiver.o
-	$(CC) -o receiver receiver.o $(CFLAGS)
+SVR_TARGET=server
+CLI_TARGET=client
 
-%.o: %.c
-	$(CC) -c -o $@ $< $(CFLAGS)
+all:$(SVR_TARGET)\
+	$(CLI_TARGET)
+
+$(SVR_TARGET): $(SVR_SOURCE)
+	@echo "Compile $^"
+	$(CC) $(CFLAGS) -o $(OUT)/$@ $^
+$(CLI_TARGET): $(CLI_SOURCE)
+	@echo "Compile $^"
+	$(CC) $(CFLAGS) -o $(OUT)/$@ $^
 
 clean:
-	rm -f *.o $(TARGETS)
-
+	rm -f $(SVR_TARGET)\
+		$(CLI_TARGET)
