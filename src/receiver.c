@@ -5,8 +5,7 @@
 #include <sys/msg.h>
 #include <stdlib.h>
 #include <string.h>
-#include "msg_data.h"
-
+#include "../include/msg_data.h"
 int main(){
         key_t key=12345;
         int msqid;

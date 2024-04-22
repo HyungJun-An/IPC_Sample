@@ -1,0 +1,92 @@
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/types.h>
+#include <sys/msg.h>
+#include <stdlib.h>
+#include <string.h>
+#include "../include/msg_data.h"
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <sys/select.h>
+#include <poll.h>
+#define PORT 20162
+#define BUFFER_SIZE 16
+#define LISTEN_QUEUE_SIZE 5 
+#define theNumberOfFDs 100
+
+int main()
+{
+		/***************************/
+		/*메세지 큐 세팅		   */
+		/***************************/
+        key_t key=12345;
+        int msqid;
+        struct message msg;
+		/**************************/
+		/*socket 통신을 위한 세팅*/
+		/*************************/
+		struct sockaddr_in connectSocket;
+
+
+
+        	int readBytes, writtenBytes;
+        	char sendBuffer[BUFFER_SIZE];
+        	char receiveBuffer[BUFFER_SIZE];
+
+            //서버에 문자열을 보낸 뒤 서버가 보낸 echo를 받아 출력.
+
+
+
+
+    	//받아오는 쪽의 msqid얻어오고
+        printf("msgget start\n");
+        if((msqid=msgget(key,IPC_CREAT|0666))==-1)
+		{
+                printf("msgget failed\n");
+                exit(0);
+        }
+        //메시지를 받는다.
+			int i=0;
+			while(i<1000)
+			{
+        	if(msgrcv(msqid,&msg,sizeof(struct real_data),0,0)==-1)
+			{
+                printf("msgrcv failed\n");
+				continue;
+        	}		
+        	printf("msg : %s\n",msg.data.name);
+			
+			//받은 메세지를 DIR_G로 socket을 통해 전달 
+			memset(&connectSocket,0,sizeof(connectSocket));
+			connectSocket.sin_family = AF_INET;
+			char IP[16];
+			strcpy(IP,"192.168.1.207");
+			inet_aton(IP,(struct in_addr*) &connectSocket.sin_addr.s_addr);
+			connectSocket.sin_port = htons(PORT);
+			printf("1\n");
+	    	int connectFD = socket(AF_INET, SOCK_STREAM, 0);
+			printf("2\n");
+	   		if (connect(connectFD, (struct sockaddr*) &connectSocket, sizeof(connectSocket)) == -1)
+    		{
+       	 		printf("Can not connect.\n");
+        		continue;
+    		}
+			strcpy(receiveBuffer,msg.data.name);
+			printf("%s",receiveBuffer);
+			printf("3\n");
+            write(connectFD, msg.data.name, strlen(msg.data.name));
+			printf("4\n");
+            //readBytes = read(connectFD,receiveBuffer, sizeof(msg.data.name));
+			printf("5\n");
+            //printf("%d bytes read\n", readBytes);
+            //receiveBuffer[readBytes] = '\0';
+            //fputs(receiveBuffer, stdout);
+            fflush(stdout);
+    		close(connectFD);
+
+			i++;
+			}
+}

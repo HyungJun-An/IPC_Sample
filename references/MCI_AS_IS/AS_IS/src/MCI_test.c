@@ -1,0 +1,242 @@
+#include <sys/poll.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+#include <time.h>
+
+void *test_send_thread(void *arg);
+void *test_recv_thread(void *arg);
+
+int order_count;
+char ip_addr[32];
+
+#define BUFFER_SIZE 128
+
+int main(int argc, char* argv[]) 
+{
+    pthread_t tid1, tid2;
+
+    memset(ip_addr, 0x00, sizeof(ip_addr));
+    memcpy(ip_addr, argv[1], strlen(argv[1]));
+    order_count = atoi(argv[2]);
+     
+#if 0
+	if(pthread_create(&tid1, NULL, test_send_thread, NULL) != 0) { //1번 thread 생성
+		fprintf(stderr, "thread create error\n");
+		exit(1);
+	}
+#endif
+
+	if(pthread_create(&tid2, NULL, test_recv_thread, NULL) != 0) { //2번 thread 생성
+		fprintf(stderr, "thread create error\n");
+		exit(1);
+	}
+#if 0
+	pthread_join(tid1, NULL); /* 송신 스레드 자원 회수 */
+#endif
+	pthread_join(tid2, NULL); /* 수신 스레드 자원 회수 */
+
+
+    return 0;
+}
+
+
+void *test_send_thread(void *arg)
+{
+    
+    int i;
+    int clientSocket;
+	struct sockaddr_in serverAddress;
+	char message[128] = "Hello, TiTAN DDS";
+
+    time_t t;
+    struct tm *lt;
+    struct timeval tv;
+
+	// 소켓 생성
+	clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if (clientSocket == -1) 
+    {
+		printf("소켓 생성 실패");
+        pthread_exit(NULL);
+	}
+
+	// 서버 정보 설정
+	serverAddress.sin_family = AF_INET;
+	serverAddress.sin_port = htons(9999);
+	serverAddress.sin_addr.s_addr = inet_addr(ip_addr);
+
+	// 서버에 연결
+	if (connect(clientSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) == -1) 
+    {
+		printf("연결 실패");
+        pthread_exit(NULL);
+	} 
+    else 
+    {
+		printf("연결 성공\n");
+	}
+
+    for(i = 0 ; i < order_count; i++)
+    {
+	    // 메시지 전송
+	    if (send(clientSocket, message, sizeof(message), 0) == -1) 
+        {
+		    printf("메시지 전송 실패\n");
+	        close(clientSocket);
+            pthread_exit(NULL);
+        }
+        if((t = gettimeofday(&tv, NULL)) == -1)
+        {
+            printf("GETTIMEFDAY() CALL ERROR\n");
+            break;
+        }
+        if((lt = localtime(&tv.tv_sec)) == NULL)
+        {
+            printf("localtime() call error\n");
+            break;
+        }
+	    printf("send msg: %s [%d] [%04d/%02d/%02d]%02d:%02d:%02d[%06d]\n", message, i+1,
+            lt->tm_year +1900, lt->tm_mon+1, lt->tm_mday, 
+            lt->tm_hour, lt->tm_min, lt->tm_sec, tv.tv_usec);
+
+	}
+
+
+   memset(message, 0x00, sizeof(message));
+   memcpy(message, "CLOSE", strlen("CLOSE"));
+   if (send(clientSocket, message, sizeof(message), 0) == -1) 
+   {
+       printf("메시지 전송 실패\n");
+   }
+    printf("메시지 전송: %s [%d]\n", message, i);
+    printf("전송 완료\n");
+    sleep(10);
+
+	close(clientSocket);
+    pthread_exit(NULL);
+}
+
+void *test_recv_thread(void *arg)
+{
+
+    struct sockaddr_in server_addr;
+    int server_sock;
+    int client_sock;
+    int recv_count;
+    int rtn;
+    int r;
+    int poll_result;
+    char buf[BUFFER_SIZE];
+    int    timeout;
+    struct pollfd fds[1];
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_size = sizeof(client_addr);
+    
+    time_t tr;
+    struct tm *ltr;
+    struct timeval tvr;
+    /**********************************/
+    /* Socket 초기화                  */
+    /**********************************/
+    server_sock= socket(AF_INET, SOCK_STREAM, 0);
+    if (server_sock == -1)
+    {
+        printf("socket create error!\n");
+        pthread_exit(NULL);
+    }
+
+printf("11111111111111111\n");
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(5555);
+    server_addr.sin_addr.s_addr = inet_addr(ip_addr);
+
+    rtn = bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (rtn == -1)
+    {
+        printf("bind error!");
+        pthread_exit(NULL);
+    }
+
+    rtn = listen(server_sock, 5);
+    if (rtn == -1)
+    {
+        printf("listen error!\n");
+        pthread_exit(NULL);
+    }
+
+printf("222222222222222222222222\n");
+    // 서버 소켓이 클라이언트 연결 요청 수락
+    client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_size);
+    if (client_sock == -1)
+    {
+        printf("accept error!\n");
+        pthread_exit(NULL);
+    }
+
+    // 버퍼 설정
+
+    fds[0].fd = client_sock;
+    fds[0].events = POLLIN;
+    timeout = (3* 60 * 1000);
+
+    recv_count = 0;
+
+printf("33333333333333333333333333\n");
+    // 서버 소켓이 클라이언트 연결 요청 수락
+    while(1)
+    {
+        poll_result = poll (fds, 1, timeout);
+
+        printf("poll_result [%d] \n", poll_result);
+        if( poll_result == -1)
+        {
+            printf("poll error \n");
+            break;
+        }
+        if( poll_result == 0)
+        {
+            printf("poll timeout \n");
+            continue;        /* timeout */
+        }
+
+        // 클라이언트 요청 읽기
+        r = read(client_sock, buf, BUFFER_SIZE);
+        if(memcmp(buf, "CLOSE", 5) == 0)
+        {
+            printf("%s\n", buf);
+            break;
+        }
+        if (r == -1)
+        {
+            printf("read error!\n");
+            close(client_sock);
+            pthread_exit(NULL);
+        }
+
+        if((tr = gettimeofday(&tvr, NULL)) == -1)
+        {
+            printf("GETTIMEFDAY() CALL ERROR\n");
+            break;
+        }
+        if((ltr = localtime(&tvr.tv_sec)) == NULL)
+        {
+            printf("localtime() call error\n");
+            break;
+        }
+        if (send(client_sock, buf, sizeof(buf), 0) == -1)
+            printf("전송 실패\n");
+
+        recv_count++;
+	    printf("recv msg: %s [%d] [%04d/%02d/%02d]%02d:%02d:%02d[%06d]\n", buf, recv_count,
+            ltr->tm_year +1900, ltr->tm_mon+1, ltr->tm_mday, 
+            ltr->tm_hour, ltr->tm_min, ltr->tm_sec, tvr.tv_usec);
+        /* 클라이언트에게 동일한 메세지를 전송 */
+
+    }
+    close(client_sock);
+    pthread_exit(NULL);
+}

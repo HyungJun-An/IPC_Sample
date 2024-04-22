@@ -3,6 +3,7 @@ CFLAGS=-Wall -Wextra -g
 
 SRC=./src
 OUT=./bin
+INC=./include
 
 SVR_SOURCE=$(SRC)/poll.c
 CLI_SOURCE=$(SRC)/client.c
